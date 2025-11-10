@@ -18,18 +18,12 @@ class Logica {
 
     public function cargarInformacion($rutaArchivo) {
         if (!file_exists($rutaArchivo)) {
-            return [
-                "ok" => false,
-                "msg" => "El archivo no existe: $rutaArchivo"
-            ];
+            return ["ok" => false, "msg" => "El archivo no existe: $rutaArchivo"];
         }
 
         $archivo = fopen($rutaArchivo, "r");
         if (!$archivo) {
-            return [
-                "ok" => false,
-                "msg" => "No se pudo abrir el archivo: $rutaArchivo"
-            ];
+            return ["ok" => false, "msg" => "No se pudo abrir el archivo: $rutaArchivo"];
         }
 
         $insertados = 0;
@@ -38,48 +32,31 @@ class Logica {
         $erroresDetalle = [];
 
         $conn = $this->db->connect();
+
         $validUnidades = [];
         $validCategorias = [];
 
         try {
             $stmtU = $conn->query("SELECT id FROM unidad");
-            foreach ($stmtU->fetchAll(PDO::FETCH_COLUMN, 0) as $val) {
-                $validUnidades[] = intval($val);
-            }
-        } catch (Exception $e) {
-            $validUnidades = [];
-        }
+            $validUnidades = $stmtU->fetchAll(PDO::FETCH_COLUMN, 0);
+        } catch (Exception $e) {}
 
         try {
             $stmtC = $conn->query("SELECT id FROM categoria");
-            foreach ($stmtC->fetchAll(PDO::FETCH_COLUMN, 0) as $val) {
-                $validCategorias[] = intval($val);
-            }
-        } catch (Exception $e) {
-            $validCategorias = [];
-        }
+            $validCategorias = $stmtC->fetchAll(PDO::FETCH_COLUMN, 0);
+        } catch (Exception $e) {}
 
         $cabecera = fgetcsv($archivo);
         if ($cabecera === false) {
             fclose($archivo);
-            return [
-                "ok" => false,
-                "msg" => "El archivo está vacío o no tiene cabecera"
-            ];
+            return ["ok" => false, "msg" => "El archivo está vacío o no tiene cabecera"];
         }
 
         $expectedCols = 15;
         if (count($cabecera) < $expectedCols) {
             fclose($archivo);
-            return [
-                "ok" => false,
-                "msg" => "La cabecera no tiene las columnas esperadas. Se esperaban $expectedCols columnas."
-            ];
+            return ["ok" => false, "msg" => "Cabecera inválida: se esperaban $expectedCols columnas."];
         }
-
-        $regexCodigo = '/^PROD\d{6}$/';   // PROD000001
-        $regexNombre = '/^NOM_PROD\d+$/'; // NOM_PROD1
-        $regexDescr  = '/^DES_PROD\d+$/'; // DES_PROD1
 
         $logDir = __DIR__ . '/logs';
         if (!file_exists($logDir)) {
@@ -88,95 +65,52 @@ class Logica {
         $logPath = $logDir . '/errores_' . date('Ymd_His') . '.log';
         $logFile = fopen($logPath, 'a');
 
-
         $sql = "INSERT INTO elemento (
-                codigo_elemnto, nmbre_elemnto, dscrpcion_elemnto, ctgria_elemnto, und_elemnto,
-                exstncia_elemnto, bdga_elemnto, precio_venta_ac, precio_venta_an,
-                costo_venta, mrgen_utldad, tiene_iva, stock_minimo, stock_maximo, estado
-            ) VALUES (
-                :codigo, :nombre, :descripcion, :categoria, :unidad,
-                :existencia, :bodega, :precio_ac, :precio_an,
-                :costo, :margen, :tiene_iva, :stock_min, :stock_max, :estado
-            )";
+            codigo_elemnto, nmbre_elemnto, dscrpcion_elemnto, ctgria_elemnto, und_elemnto,
+            exstncia_elemnto, bdga_elemnto, precio_venta_ac, precio_venta_an,
+            costo_venta, mrgen_utldad, tiene_iva, stock_minimo, stock_maximo, estado
+        ) VALUES (
+            :codigo, :nombre, :descripcion, :categoria, :unidad,
+            :existencia, :bodega, :precio_ac, :precio_an,
+            :costo, :margen, :tiene_iva, :stock_min, :stock_max, :estado
+        )";
+
         $stmtInsert = $conn->prepare($sql);
+
+        $regexCodigo = '/^PROD\d{6}$/';
+        $regexNombre = '/^NOM_PROD\d+$/';
+        $regexDescr  = '/^DES_PROD\d+$/';
 
         while (($fila = fgetcsv($archivo)) !== false) {
             $total++;
+
             if (count($fila) < $expectedCols) {
                 $errores++;
-                $msg = "Línea $total: columnas insuficientes (" . count($fila) . ")";
-                $erroresDetalle[] = $msg;
-                fwrite($logFile, $msg . "\n");
+                fwrite($logFile, "Línea $total: columnas insuficientes\n");
                 continue;
             }
 
-            if (count($fila) === 16) {
-                array_shift($fila);
-            }
+            if (count($fila) === 16) array_shift($fila);
 
-            $codigo     = trim($fila[0]);
-            $nombre     = trim($fila[1]);
-            $descripcion= trim($fila[2]);
-            $categoria  = is_numeric($fila[3]) ? intval($fila[3]) : null;
-            $unidad     = is_numeric($fila[4]) ? intval($fila[4]) : null;
-            $existencia = is_numeric($fila[5]) ? intval($fila[5]) : null;
-            $bodega     = is_numeric($fila[6]) ? intval($fila[6]) : null;
-            $precio_ac  = is_numeric($fila[7]) ? floatval($fila[7]) : null;
-            $precio_an  = is_numeric($fila[8]) ? floatval($fila[8]) : null;
-            $costo      = is_numeric($fila[9]) ? floatval($fila[9]) : null;
-            $margen     = is_numeric($fila[10]) ? floatval($fila[10]) : null;
-            $tiene_iva  = trim($fila[11]);
-            $stock_min  = is_numeric($fila[12]) ? intval($fila[12]) : null;
-            $stock_max  = is_numeric($fila[13]) ? intval($fila[13]) : null;
-            $estado     = trim($fila[14]);
+            [$codigo, $nombre, $descripcion, $categoria, $unidad, $existencia, $bodega,
+             $precio_ac, $precio_an, $costo, $margen, $tiene_iva, $stock_min, $stock_max, $estado] = $fila;
+
+            $codigo = trim($codigo);
+            $nombre = trim($nombre);
+            $descripcion = trim($descripcion);
 
             $lineOk = true;
             $msgs = [];
 
-            if (!preg_match($regexCodigo, $codigo)) {
-                $lineOk = false;
-                $msgs[] = "formato de código inválido ($codigo)";
-            }
-            if (!preg_match($regexNombre, $nombre)) {
-                $lineOk = false;
-                $msgs[] = "formato de nombre inválido ($nombre)";
-            }
-            if (!preg_match($regexDescr, $descripcion)) {
-                $lineOk = false;
-                $msgs[] = "formato de descripción inválido ($descripcion)";
-            }
-
-            if ($codigo === '') { $lineOk = false; $msgs[] = "codigo vacío"; }
-            if ($nombre === '') { $lineOk = false; $msgs[] = "nombre vacío"; }
-
-            if ($precio_ac === null || $precio_ac < 0) { $lineOk = false; $msgs[] = "precio_venta_ac inválido"; }
-            if ($precio_an === null || $precio_an < 0) { $lineOk = false; $msgs[] = "precio_venta_an inválido"; }
-            if ($costo === null || $costo < 0) { $lineOk = false; $msgs[] = "costo_venta inválido"; }
-
-            if ($existencia === null || $existencia < 0) { $lineOk = false; $msgs[] = "existencia inválida"; }
-            if ($stock_min === null || $stock_min < 0) { $lineOk = false; $msgs[] = "stock_minimo inválido"; }
-            if ($stock_max === null || $stock_max < 0) { $lineOk = false; $msgs[] = "stock_maximo inválido"; }
-
-            if (!empty($validUnidades) && $unidad !== null && !in_array($unidad, $validUnidades, true)) {
-                $lineOk = false;
-                $msgs[] = "unidad no existe (id: $unidad)";
-            }
-            if (!empty($validCategorias) && $categoria !== null && !in_array($categoria, $validCategorias, true)) {
-                $lineOk = false;
-                $msgs[] = "categoria no existe (id: $categoria)";
-            }
+            if (!preg_match($regexCodigo, $codigo)) { $lineOk = false; $msgs[] = "Código inválido"; }
+            if (!preg_match($regexNombre, $nombre)) { $lineOk = false; $msgs[] = "Nombre inválido"; }
+            if (!preg_match($regexDescr, $descripcion)) { $lineOk = false; $msgs[] = "Descripción inválida"; }
 
             if (!$lineOk) {
                 $errores++;
-                $detalleLinea = "Archivo: " . basename($rutaArchivo) .
-                    " | Línea $total | Errores: " . implode("; ", $msgs) .  
-                    " | Datos: " . implode(",", $fila) . "\n";
-                fwrite($logFile, $detalleLinea);
-                $erroresDetalle[] = "Línea $total: " . implode("; ", $msgs);
+                fwrite($logFile, "Línea $total: " . implode("; ", $msgs) . "\n");
                 continue;
             }
-
-            // ==========================================
 
             try {
                 $stmtInsert->execute([
@@ -194,52 +128,30 @@ class Logica {
                     ":tiene_iva" => $tiene_iva,
                     ":stock_min" => $stock_min,
                     ":stock_max" => $stock_max,
-                    ":estado" => $estado,
+                    ":estado" => $estado
                 ]);
                 $insertados++;
             } catch (PDOException $e) {
                 $errores++;
-                $msg = "Línea $total: error BD: " . $e->getMessage();
-                fwrite($logFile, $msg . "\n");
-                $erroresDetalle[] = $msg;
+                fwrite($logFile, "Línea $total: Error BD - " . $e->getMessage() . "\n");
             }
         }
 
         fclose($archivo);
         fclose($logFile);
 
-        $detalle = "";
-        if (!empty($erroresDetalle)) {
-            $detalle = implode("\n", array_slice($erroresDetalle, 0, 2000));
-        }
-
-        try {
-            $stmtAudit = $conn->prepare("INSERT INTO auditoria (nombre_archivo, fecha_carga, registros_insertados, registros_fallidos, total_registros, detalle_error) VALUES (:nombre, NOW(), :ins, :fail, :total, :detalle)");
-            $stmtAudit->execute([
-                ":nombre" => basename($rutaArchivo),
-                ":ins" => $insertados,
-                ":fail" => $errores,
-                ":total" => $total,
-                ":detalle" => $detalle
-            ]);
-        } catch (PDOException $e) {
-            $erroresDetalle[] = "Error al registrar auditoría: " . $e->getMessage();
-        }
-
-        $this->enviarCorreoResumen(basename($rutaArchivo), $insertados, $errores, $total);
-        $this->enviarSMSResumen(basename($rutaArchivo), $insertados, $errores, $total);
-
         return [
             "ok" => true,
             "archivo" => basename($rutaArchivo),
             "insertados" => $insertados,
             "errores" => $errores,
-            "total" => $total,
-            "erroresDetalle" => $erroresDetalle
+            "total" => $total
         ];
     }
 
-    private function enviarCorreoResumen($nombreArchivo, $insertados, $errores, $total) {
+    // === Métodos separados reutilizables ===
+
+    public function enviarCorreoResumen($nombreArchivo, $insertados, $errores, $total) {
         $mail = new PHPMailer(true);
         try {
             $mail->isSMTP();
@@ -252,7 +164,6 @@ class Logica {
 
             $mail->setFrom('jjaramillon2013@gmail.com', 'SophyFarm Batch');
             $mail->addAddress('jjaramillon2013@gmail.com', 'Yo mismo');
-
             $mail->isHTML(true);
             $mail->Subject = "Carga completada: $nombreArchivo";
             $mail->Body = "
@@ -261,27 +172,20 @@ class Logica {
                 <p><b>Total de registros:</b> $total</p>
                 <p><b>Insertados correctamente:</b> $insertados</p>
                 <p><b>Errores:</b> $errores</p>
-                <p>Hora del proceso: " . date("Y-m-d H:i:s") . "(UTC-5)</p>
+                <p>Hora del proceso: " . date("Y-m-d H:i:s") . " (UTC-5)</p>
             ";
 
             $mail->send();
             echo "📨 Correo enviado correctamente.<br>";
         } catch (Exception $e) {
-            echo "No se pudo enviar el correo.<br>";
-            echo "ErrorInfo: " . $mail->ErrorInfo . "<br>";
-            echo "Exception: " . $e->getMessage() . "<br>";
+            echo "No se pudo enviar el correo: " . $e->getMessage() . "<br>";
         }
     }
 
-    private function enviarSMSResumen($nombreArchivo, $insertados, $errores, $total) {
+    public function enviarSMSResumen($nombreArchivo, $insertados, $errores, $total) {
         $apikey = '5248222';
         $phone  = '+573137737088';
-        
-        $mensaje = "Carga completada: $nombreArchivo\n" .
-                   "Insertados: $insertados\n" .
-                   "Errores: $errores\n" .
-                   "Total: $total\n" .
-                   "Hora:" . date("Y-m-d H:i:s");
+        $mensaje = "Carga completada: $nombreArchivo\nInsertados: $insertados\nErrores: $errores\nTotal: $total\nHora:" . date("Y-m-d H:i:s");
 
         $url = "https://api.callmebot.com/whatsapp.php?phone={$phone}&text=" . urlencode($mensaje) . "&apikey={$apikey}";
 
