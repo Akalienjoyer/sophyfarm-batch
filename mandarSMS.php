@@ -5,13 +5,13 @@ $logica = new Logica();
 $jsonPath = __DIR__ . "/ultimo_proceso.json";
 
 if (!file_exists($jsonPath)) {
-    die("⚠️ No se encontró el archivo de resumen (ultimo_proceso.json)");
+    die("No se encontró el archivo de resumen (ultimo_proceso.json)");
 }
 
 $datos = json_decode(file_get_contents($jsonPath), true);
 
 if (!$datos || empty($datos["archivos"])) {
-    die("⚠️ Error al leer los datos del resumen.");
+    die("Error al leer los datos del resumen.");
 }
 
 $horaLote = $datos["hora_lote"];
@@ -22,13 +22,12 @@ foreach ($datos["archivos"] as $a) {
     $errores = $a["errores"];
     $total = $a["total"];
 
-    // Enviar SMS individual por archivo
     $mensaje = "Carga completada: $nombreArchivo\n" .
                "Total: $total | Insertados: $insertados | Errores: $errores\n" .
                "Hora del proceso: " . date("Y-m-d H:i:s") . " (UTC-5)";
 
     $logica->enviarSMSResumen("Archivo: $nombreArchivo", $insertados, $errores, $total, $mensaje);
 
-    echo "✅ SMS enviado para el archivo: $nombreArchivo<br>";
+    echo "SMS enviado para el archivo: $nombreArchivo<br>";
 }
 ?>

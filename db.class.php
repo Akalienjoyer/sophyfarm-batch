@@ -52,7 +52,7 @@ class Database {
                 ]
             );
         } catch (PDOException $e) {
-            die("❌ Error de conexión a la BD: " . $e->getMessage());
+            die("Error de conexión a la BD: " . $e->getMessage());
         }
         return $this->conn;
     }
@@ -76,7 +76,7 @@ class Database {
                     return false;
             }
         } catch (PDOException $e) {
-            echo "⚠️ Error en la consulta: " . $e->getMessage() . "<br>Query: $query";
+            echo "Error en la consulta: " . $e->getMessage() . "<br>Query: $query";
             return false;
         }
     }
